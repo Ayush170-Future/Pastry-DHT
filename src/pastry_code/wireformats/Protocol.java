@@ -4,7 +4,7 @@ import java.io.Serializable;
 
 public abstract class Protocol implements Serializable {
 
-    // These are messages, that will be used the peers inside the network to communicate.
+    // These are messages, that will be used by the peers inside the network to communicate.
     // These don't follow a particular scheme.
 
     // State-Messages, 100s.
