@@ -5,7 +5,7 @@ public class ErrorMessage extends Protocol{
     // Error Message.
     private String message;
 
-    ErrorMessage(String message) {
+    public ErrorMessage(String message) {
         this.message = message;
     }
 

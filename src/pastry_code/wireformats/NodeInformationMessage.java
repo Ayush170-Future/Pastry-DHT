@@ -6,7 +6,7 @@ public class NodeInformationMessage extends Protocol {
     private byte[] id;
     private NodeAddress nodeAddress;
 
-    NodeInformationMessage(byte[] id, NodeAddress nodeAddress) {
+    public NodeInformationMessage(byte[] id, NodeAddress nodeAddress) {
         this.id = id;
         this.nodeAddress = nodeAddress;
     }
