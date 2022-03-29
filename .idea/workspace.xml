@@ -1,13 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="a734ac05-85e4-43b0-ac59-2cae7066a8be" name="Default Changelist" comment="Completed coding the Discovery Node.">
-      <change afterPath="$PROJECT_DIR$/src/pastry_code/DataStorage.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/pastry_code/DiscoveryNode.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/pastry_code/DiscoveryNode.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/pastry_code/wireformats/LookupNodeMessage.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/pastry_code/wireformats/LookupNodeMessage.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/pastry_code/wireformats/ReadDataMessage.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/pastry_code/wireformats/ReadDataMessage.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/pastry_code/wireformats/WriteDataMessage.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/pastry_code/wireformats/WriteDataMessage.java" afterDir="false" />
+    <list default="true" id="a734ac05-85e4-43b0-ac59-2cae7066a8be" name="Default Changelist" comment="Completed with DataStorage.">
+      <change beforePath="$PROJECT_DIR$/src/pastry_code/DataStorage.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/pastry_code/DataStorage.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -84,7 +79,14 @@
       <option name="project" value="LOCAL" />
       <updated>1648316169978</updated>
     </task>
-    <option name="localTasksCounter" value="3" />
+    <task id="LOCAL-00003" summary="Completed with DataStorage.">
+      <created>1648579331873</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1648579331873</updated>
+    </task>
+    <option name="localTasksCounter" value="4" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -100,6 +102,7 @@
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="Completed coding the Discovery Node." />
-    <option name="LAST_COMMIT_MESSAGE" value="Completed coding the Discovery Node." />
+    <MESSAGE value="Completed with DataStorage." />
+    <option name="LAST_COMMIT_MESSAGE" value="Completed with DataStorage." />
   </component>
 </project>

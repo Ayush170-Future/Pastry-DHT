@@ -33,10 +33,9 @@ public class DataStorage {
             System.exit(1);
         }
 
-        String input = "";
-
         BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
 
+        String input = "";
         while(true) {
             try {
 
