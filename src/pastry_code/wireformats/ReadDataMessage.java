@@ -3,7 +3,7 @@ package pastry_code.wireformats;
 public class ReadDataMessage extends Protocol{
     private byte[] id;
 
-    ReadDataMessage(byte[] id) {
+    public ReadDataMessage(byte[] id) {
         this.id = id;
     }
 

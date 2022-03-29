@@ -1,12 +1,13 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="a734ac05-85e4-43b0-ac59-2cae7066a8be" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/pastry_code/DiscoveryNode.java" afterDir="false" />
+    <list default="true" id="a734ac05-85e4-43b0-ac59-2cae7066a8be" name="Default Changelist" comment="Completed coding the Discovery Node.">
+      <change afterPath="$PROJECT_DIR$/src/pastry_code/DataStorage.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/pastry_code/wireformats/ErrorMessage.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/pastry_code/wireformats/ErrorMessage.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/pastry_code/wireformats/NodeInformationMessage.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/pastry_code/wireformats/NodeInformationMessage.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/pastry_code/DiscoveryNode.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/pastry_code/DiscoveryNode.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/pastry_code/wireformats/LookupNodeMessage.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/pastry_code/wireformats/LookupNodeMessage.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/pastry_code/wireformats/ReadDataMessage.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/pastry_code/wireformats/ReadDataMessage.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/pastry_code/wireformats/WriteDataMessage.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/pastry_code/wireformats/WriteDataMessage.java" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -22,6 +23,14 @@
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="HighlightingSettingsPerFile">
+    <setting file="file://$PROJECT_DIR$/src/pastry_code/wireformats/RegisterNodeMessage.java" root0="FORCE_HIGHLIGHTING" />
+    <setting file="file://$PROJECT_DIR$/src/pastry_code/wireformats/Protocol.java" root0="FORCE_HIGHLIGHTING" />
+    <setting file="file://$PROJECT_DIR$/src/pastry_code/DiscoveryNode.java" root0="FORCE_HIGHLIGHTING" />
+    <setting file="file://$PROJECT_DIR$/src/pastry_code/wireformats/NodeInformationMessage.java" root0="FORCE_HIGHLIGHTING" />
+    <setting file="file://$PROJECT_DIR$/src/pastry_code/wireformats/NodeJoinMessage.java" root0="FORCE_HIGHLIGHTING" />
+    <setting file="file://$PROJECT_DIR$/src/pastry_code/wireformats/ReadDataMessage.java" root0="FORCE_HIGHLIGHTING" />
   </component>
   <component name="ProjectId" id="26k45dRYNZYqWA4QTTX0tBgcvuT" />
   <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
@@ -61,6 +70,21 @@
       <option name="presentableId" value="Default" />
       <updated>1647954070052</updated>
     </task>
+    <task id="LOCAL-00001" summary="Completed coding the Discovery Node.">
+      <created>1648316085493</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1648316085493</updated>
+    </task>
+    <task id="LOCAL-00002" summary="Completed coding the Discovery Node.">
+      <created>1648316169978</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1648316169978</updated>
+    </task>
+    <option name="localTasksCounter" value="3" />
     <servers />
   </component>
   <component name="Vcs.Log.Tabs.Properties">
@@ -73,5 +97,9 @@
         </entry>
       </map>
     </option>
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="Completed coding the Discovery Node." />
+    <option name="LAST_COMMIT_MESSAGE" value="Completed coding the Discovery Node." />
   </component>
 </project>

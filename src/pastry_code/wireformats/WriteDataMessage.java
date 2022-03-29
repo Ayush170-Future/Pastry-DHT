@@ -4,7 +4,7 @@ public class WriteDataMessage extends Protocol {
     private byte[] id;
     private byte[] data;
 
-    WriteDataMessage(byte[] id, byte[] data) {
+    public WriteDataMessage(byte[] id, byte[] data) {
         this.id = id;
         this.data = data;
     }

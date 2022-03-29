@@ -15,7 +15,7 @@ public class LookupNodeMessage extends Protocol {
     private int prefixLength;
     private List<NodeAddress> hops;  // List for storing the list of nodes in the path.
 
-    LookupNodeMessage(byte[] id, NodeAddress nodeAddress, int prefixLength) {
+    public LookupNodeMessage(byte[] id, NodeAddress nodeAddress, int prefixLength) {
         this.id = id;
         this.prefixLength = prefixLength;
         this.nodeAddress = nodeAddress;

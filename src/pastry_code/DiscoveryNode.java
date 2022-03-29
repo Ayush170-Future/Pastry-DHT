@@ -143,6 +143,7 @@ public class DiscoveryNode extends Thread {
                 switch (requestMessage.getMessageType()) {
 
                     case Protocol.REGISTER_NODE_MSG:
+
                         RegisterNodeMessage registerNodeMessage = (RegisterNodeMessage) requestMessage;  // Down-casting to the subclass object for using the subclass specific methods.
                         try {
                             readWriteLock.readLock().unlock();
@@ -172,6 +173,7 @@ public class DiscoveryNode extends Thread {
                         break;
 
                     case Protocol.REQUEST_RANDOM_NODE:
+
                         readWriteLock.readLock().lock();
                         try {
                             if(isNodesListEmpty()) {
