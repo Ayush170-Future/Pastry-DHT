@@ -15,7 +15,7 @@ public class NodeJoinMessage extends Protocol {
     private int prefixLength;
     private List<NodeAddress> hops;  // List for storing the list of nodes in the path.
 
-    NodeJoinMessage(byte[] id, int prefixLength, NodeAddress nodeAddress) {
+    public NodeJoinMessage(byte[] id, int prefixLength, NodeAddress nodeAddress) {
         this.id = id;
         this.prefixLength = prefixLength;
         this.nodeAddress = nodeAddress;

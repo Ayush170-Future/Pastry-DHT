@@ -11,7 +11,7 @@ public class RegisterNodeMessage extends Protocol {
     private final InetAddress inetAddress;
     private final int port;
 
-    RegisterNodeMessage(String nodeName, byte[] id, InetAddress inetAddress, int port) {
+    public RegisterNodeMessage(String nodeName, byte[] id, InetAddress inetAddress, int port) {
         this.nodeName = nodeName;
         this.id = id;
         this.inetAddress = inetAddress;

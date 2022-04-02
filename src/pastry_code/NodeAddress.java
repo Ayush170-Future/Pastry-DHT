@@ -12,7 +12,7 @@ public class NodeAddress implements Serializable {
     private InetAddress inetAddress;
     private int port;
 
-    NodeAddress(String nodeName, InetAddress inetAddress, int port) {
+    public NodeAddress(String nodeName, InetAddress inetAddress, int port) {
         this.nodeName = nodeName;
         this.inetAddress = inetAddress;
         this.port = port;
