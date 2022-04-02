@@ -1,0 +1,391 @@
+Index: src/pastry_code/wireformats/LookupNodeMessage.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>package pastry_code.wireformats;\r\n\r\nimport pastry_code.HexConverter;\r\nimport pastry_code.NodeAddress;\r\n\r\nimport java.util.LinkedList;\r\nimport java.util.List;\r\n\r\n// Message for joining the Node into the network. This message is intended for the node with the same prefix up to a\r\n// particular hop count.\r\n\r\npublic class LookupNodeMessage extends Protocol {\r\n    private byte[] id;\r\n    private NodeAddress nodeAddress;\r\n    private int prefixLength;\r\n    private List<NodeAddress> hops;  // List for storing the list of nodes in the path.\r\n\r\n    LookupNodeMessage(byte[] id, NodeAddress nodeAddress, int prefixLength) {\r\n        this.id = id;\r\n        this.prefixLength = prefixLength;\r\n        this.nodeAddress = nodeAddress;\r\n        hops = new LinkedList<>();\r\n    }\r\n\r\n    public byte[] getId() {\r\n        return id;\r\n    }\r\n\r\n    public int getPrefixLength() {\r\n        return prefixLength;\r\n    }\r\n\r\n    public NodeAddress getNodeAddress() {\r\n        return nodeAddress;\r\n    }\r\n\r\n    public void setLongestPrefixLength(int prefixLength) {\r\n        this.prefixLength = prefixLength;\r\n    }\r\n\r\n    public void addHop(NodeAddress nodeAddress) {\r\n        hops.add(nodeAddress);\r\n    }\r\n\r\n    public boolean hopContains(NodeAddress nodeAddress) {\r\n        return hops.contains(nodeAddress);\r\n    }\r\n\r\n    @Override\r\n    public int getMessageType() {\r\n        return LOOKUP_NODE_MSG;\r\n    }\r\n\r\n    @Override\r\n    public String toString() {\r\n        StringBuilder string = new StringBuilder();\r\n        string.append(\"ID: \").append(HexConverter.convertBytesToHex(id));\r\n        string.append(\"Hops \").append(hops.size());\r\n        string.append(\"Path: \").append(nodeAddress.toString());\r\n\r\n        for(NodeAddress hop: hops) {\r\n            string.append(\" -> \").append(hop.toString());\r\n        }\r\n\r\n        return string.toString();\r\n    }\r\n}\r\n
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/src/pastry_code/wireformats/LookupNodeMessage.java b/src/pastry_code/wireformats/LookupNodeMessage.java
+--- a/src/pastry_code/wireformats/LookupNodeMessage.java	(revision 409c944be10c8f6d240cd397169898dad7b370f5)
++++ b/src/pastry_code/wireformats/LookupNodeMessage.java	(date 1648561872512)
+@@ -15,7 +15,7 @@
+     private int prefixLength;
+     private List<NodeAddress> hops;  // List for storing the list of nodes in the path.
+ 
+-    LookupNodeMessage(byte[] id, NodeAddress nodeAddress, int prefixLength) {
++    public LookupNodeMessage(byte[] id, NodeAddress nodeAddress, int prefixLength) {
+         this.id = id;
+         this.prefixLength = prefixLength;
+         this.nodeAddress = nodeAddress;
+Index: src/pastry_code/DiscoveryNode.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>package pastry_code;\r\n\r\nimport pastry_code.wireformats.*;\r\n\r\nimport java.io.IOException;\r\nimport java.io.ObjectInputStream;\r\nimport java.io.ObjectOutputStream;\r\nimport java.net.ServerSocket;\r\nimport java.net.Socket;\r\nimport java.util.HashMap;\r\nimport java.util.Map;\r\nimport java.util.Random;\r\nimport java.util.concurrent.locks.ReadWriteLock;\r\nimport java.util.concurrent.locks.ReentrantReadWriteLock;\r\nimport java.util.logging.Logger;\r\n\r\npublic class DiscoveryNode extends Thread {\r\n    private static final Logger LOGGER = Logger.getLogger(DiscoveryNode.class.getCanonicalName());\r\n    protected int port;\r\n    protected Map<byte[], NodeAddress> nodes;\r\n    protected ReadWriteLock readWriteLock;\r\n    private final Random random;\r\n\r\n    public DiscoveryNode(int port) {\r\n        this.port = port;\r\n        random = new Random();\r\n        nodes = new HashMap<>();\r\n        readWriteLock = new ReentrantReadWriteLock();\r\n    }\r\n\r\n    public static void main(String[] args) {\r\n        try {\r\n            if (args.length != 1) throw new Exception();\r\n            int port = Integer.parseInt(args[0]);\r\n\r\n            Thread discoveryNodeThread = new Thread(new DiscoveryNode(port));\r\n            discoveryNodeThread.start();\r\n\r\n        } catch (Exception e) {\r\n            e.printStackTrace();\r\n        } finally {\r\n            System.out.println(\"Syntax: DiscoveryNode port\");\r\n        }\r\n    }\r\n\r\n    public boolean isNodesListEmpty() {\r\n        readWriteLock.readLock().lock();\r\n        try {\r\n            return nodes.isEmpty();\r\n        } finally {\r\n            readWriteLock.readLock().unlock();\r\n        }\r\n    }\r\n\r\n    public byte[] getRandomNode() {\r\n        readWriteLock.readLock().lock();\r\n        try {\r\n            int randomID = random.nextInt(nodes.size());\r\n\r\n            for(byte[] ID: nodes.keySet()) {\r\n                if(randomID-- == 0) {\r\n                    return ID;\r\n                }\r\n            }\r\n            return null;\r\n        } finally {\r\n            readWriteLock.readLock().unlock();\r\n        }\r\n    }\r\n\r\n    public void addNode(byte[] id, NodeAddress nodeAddress) throws Exception{\r\n        readWriteLock.readLock().lock();\r\n\r\n        // Check if the ID is already present in the network or not?\r\n        try {\r\n            if(nodes.containsKey(id)) {\r\n                throw new Exception(\"ID \" +HexConverter.convertBytesToHex(id) +\" is already present in the Network\");\r\n            }\r\n        } finally {\r\n            readWriteLock.readLock().unlock();\r\n        }\r\n\r\n        // Adding the node with the given ID in the network.\r\n        readWriteLock.readLock().lock();\r\n        try {\r\n            nodes.put(id, nodeAddress);\r\n        } finally {\r\n            readWriteLock.readLock().unlock();\r\n        }\r\n    }\r\n\r\n    protected void printActiveNodes() {\r\n        readWriteLock.readLock().lock();\r\n        try {\r\n            StringBuilder str = new StringBuilder(\"----ACTIVE NODES----\");\r\n            for(Map.Entry<byte[],NodeAddress> entry : nodes.entrySet()) {\r\n                str.append(\"\\n\").append(HexConverter.convertBytesToHex(entry.getKey())).append(\" : \").append(entry.getValue());\r\n            }\r\n            str.append(\"\\n--------------------\");\r\n            LOGGER.info(str.toString());\r\n        } finally {\r\n            readWriteLock.readLock().unlock();\r\n        }\r\n    }\r\n\r\n    @Override\r\n    public void run() {\r\n        try {\r\n            // Creating a Server Socket for receiving the requests from the network.\r\n            ServerSocket serverSocket = new ServerSocket(port);\r\n\r\n            // Accepts Connection.\r\n            while(true) {\r\n                Socket socket = serverSocket.accept();\r\n                System.out.println(\"Received Connection from: \" +socket.getInetAddress() +\":\" +socket.getPort() +\".\");\r\n\r\n                Thread subThread = new Thread(new DiscoveryNodeWorker(socket));\r\n                subThread.start();\r\n            }\r\n\r\n        } catch (IOException e) {\r\n            e.printStackTrace();\r\n        }\r\n    }\r\n\r\n    // This is the Thread which takes the Node Request and answer accordingly.\r\n    private class DiscoveryNodeWorker extends Thread {\r\n        protected Socket socket;\r\n\r\n        public DiscoveryNodeWorker(Socket socket) {\r\n            this.socket = socket;\r\n        }\r\n\r\n        @Override\r\n        public void run() {\r\n\r\n            try {\r\n                // Reading request message from the connection.\r\n                ObjectInputStream input = new ObjectInputStream(socket.getInputStream());\r\n                Protocol requestMessage = (Protocol) input.readObject();  // Compile-time casting.\r\n                Protocol replyMessage = null;\r\n\r\n                switch (requestMessage.getMessageType()) {\r\n\r\n                    case Protocol.REGISTER_NODE_MSG:\r\n                        RegisterNodeMessage registerNodeMessage = (RegisterNodeMessage) requestMessage;  // Down-casting to the subclass object for using the subclass specific methods.\r\n                        try {\r\n                            readWriteLock.readLock().unlock();\r\n\r\n                            // If this new node is the first node in the cluster then don't need to do anything.\r\n                            if(isNodesListEmpty()) {\r\n                                replyMessage = new SuccessMessage();\r\n                            } else {\r\n\r\n                                // Else we will pass a Random node to the new node for adding it's self in the network.\r\n                                byte[] randomID = getRandomNode();\r\n\r\n                                replyMessage = new NodeInformationMessage(randomID, nodes.get(randomID));\r\n                            }\r\n\r\n                            addNode(registerNodeMessage.getId(), new NodeAddress(registerNodeMessage.getNodeName(),\r\n                                    socket.getInetAddress(), registerNodeMessage.getPort()));\r\n\r\n                        } catch (Exception e) {\r\n                            replyMessage = new ErrorMessage(e.getMessage());\r\n                        } finally {\r\n                            readWriteLock.readLock().unlock();\r\n                        }\r\n\r\n                        // Print the active Nodes.\r\n                        printActiveNodes();\r\n                        break;\r\n\r\n                    case Protocol.REQUEST_RANDOM_NODE:\r\n                        readWriteLock.readLock().lock();\r\n                        try {\r\n                            if(isNodesListEmpty()) {\r\n\r\n                                replyMessage = new ErrorMessage(\"The list of Nodes is empty\");\r\n\r\n                            } else {\r\n\r\n                                byte[] id = getRandomNode();\r\n                                replyMessage = new NodeInformationMessage(id, nodes.get(id));\r\n\r\n                            }\r\n                        } catch (Exception e) {\r\n                            replyMessage = new ErrorMessage(e.getMessage());\r\n                        } finally {\r\n                            readWriteLock.readLock().unlock();\r\n                        }\r\n                        break;\r\n\r\n                    default:\r\n                        LOGGER.severe(\"Unrecognized request message type '\" + requestMessage.getMessageType() + \"'\");\r\n                        break;\r\n                }\r\n\r\n                // Sending the reply message to the calling Node.\r\n                if(replyMessage != null) {\r\n                    ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());\r\n                    out.writeObject(replyMessage);\r\n                }\r\n\r\n            } catch (IOException | ClassNotFoundException e) {\r\n                e.printStackTrace();\r\n                LOGGER.severe(e.getMessage());\r\n            }\r\n        }\r\n    }\r\n}\r\n
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/src/pastry_code/DiscoveryNode.java b/src/pastry_code/DiscoveryNode.java
+--- a/src/pastry_code/DiscoveryNode.java	(revision 409c944be10c8f6d240cd397169898dad7b370f5)
++++ b/src/pastry_code/DiscoveryNode.java	(date 1648553357940)
+@@ -143,6 +143,7 @@
+                 switch (requestMessage.getMessageType()) {
+ 
+                     case Protocol.REGISTER_NODE_MSG:
++
+                         RegisterNodeMessage registerNodeMessage = (RegisterNodeMessage) requestMessage;  // Down-casting to the subclass object for using the subclass specific methods.
+                         try {
+                             readWriteLock.readLock().unlock();
+@@ -172,6 +173,7 @@
+                         break;
+ 
+                     case Protocol.REQUEST_RANDOM_NODE:
++
+                         readWriteLock.readLock().lock();
+                         try {
+                             if(isNodesListEmpty()) {
+Index: src/pastry_code/wireformats/WriteDataMessage.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>package pastry_code.wireformats;\r\n\r\npublic class WriteDataMessage extends Protocol {\r\n    private byte[] id;\r\n    private byte[] data;\r\n\r\n    WriteDataMessage(byte[] id, byte[] data) {\r\n        this.id = id;\r\n        this.data = data;\r\n    }\r\n\r\n    public byte[] getId() {\r\n        return id;\r\n    }\r\n\r\n    public byte[] getData() {\r\n        return data;\r\n    }\r\n\r\n    @Override\r\n    public int getMessageType() {\r\n        return WRITE_DATA_MSG;\r\n    }\r\n}\r\n
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/src/pastry_code/wireformats/WriteDataMessage.java b/src/pastry_code/wireformats/WriteDataMessage.java
+--- a/src/pastry_code/wireformats/WriteDataMessage.java	(revision 409c944be10c8f6d240cd397169898dad7b370f5)
++++ b/src/pastry_code/wireformats/WriteDataMessage.java	(date 1648566700169)
+@@ -4,7 +4,7 @@
+     private byte[] id;
+     private byte[] data;
+ 
+-    WriteDataMessage(byte[] id, byte[] data) {
++    public WriteDataMessage(byte[] id, byte[] data) {
+         this.id = id;
+         this.data = data;
+     }
+Index: src/pastry_code/wireformats/ReadDataMessage.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+>package pastry_code.wireformats;\r\n\r\npublic class ReadDataMessage extends Protocol{\r\n    private byte[] id;\r\n\r\n    ReadDataMessage(byte[] id) {\r\n        this.id = id;\r\n    }\r\n\r\n    public byte[] getId() {\r\n        return id;\r\n    }\r\n\r\n    @Override\r\n    public int getMessageType() {\r\n        return READ_DATA_MSG;\r\n    }\r\n}
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/src/pastry_code/wireformats/ReadDataMessage.java b/src/pastry_code/wireformats/ReadDataMessage.java
+--- a/src/pastry_code/wireformats/ReadDataMessage.java	(revision 409c944be10c8f6d240cd397169898dad7b370f5)
++++ b/src/pastry_code/wireformats/ReadDataMessage.java	(date 1648578613546)
+@@ -3,7 +3,7 @@
+ public class ReadDataMessage extends Protocol{
+     private byte[] id;
+ 
+-    ReadDataMessage(byte[] id) {
++    public ReadDataMessage(byte[] id) {
+         this.id = id;
+     }
+ 
+Index: .idea/workspace.xml
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.BaseRevisionTextPatchEP
+<+><?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n<project version=\"4\">\r\n  <component name=\"ChangeListManager\">\r\n    <list default=\"true\" id=\"a734ac05-85e4-43b0-ac59-2cae7066a8be\" name=\"Default Changelist\" comment=\"\">\r\n      <change afterPath=\"$PROJECT_DIR$/.idea/vcs.xml\" afterDir=\"false\" />\r\n      <change afterPath=\"$PROJECT_DIR$/src/pastry_code/DiscoveryNode.java\" afterDir=\"false\" />\r\n      <change beforePath=\"$PROJECT_DIR$/.idea/workspace.xml\" beforeDir=\"false\" afterPath=\"$PROJECT_DIR$/.idea/workspace.xml\" afterDir=\"false\" />\r\n      <change beforePath=\"$PROJECT_DIR$/src/pastry_code/wireformats/ErrorMessage.java\" beforeDir=\"false\" afterPath=\"$PROJECT_DIR$/src/pastry_code/wireformats/ErrorMessage.java\" afterDir=\"false\" />\r\n      <change beforePath=\"$PROJECT_DIR$/src/pastry_code/wireformats/NodeInformationMessage.java\" beforeDir=\"false\" afterPath=\"$PROJECT_DIR$/src/pastry_code/wireformats/NodeInformationMessage.java\" afterDir=\"false\" />\r\n    </list>\r\n    <option name=\"SHOW_DIALOG\" value=\"false\" />\r\n    <option name=\"HIGHLIGHT_CONFLICTS\" value=\"true\" />\r\n    <option name=\"HIGHLIGHT_NON_ACTIVE_CHANGELIST\" value=\"false\" />\r\n    <option name=\"LAST_RESOLUTION\" value=\"IGNORE\" />\r\n  </component>\r\n  <component name=\"FileTemplateManagerImpl\">\r\n    <option name=\"RECENT_TEMPLATES\">\r\n      <list>\r\n        <option value=\"Class\" />\r\n      </list>\r\n    </option>\r\n  </component>\r\n  <component name=\"Git.Settings\">\r\n    <option name=\"RECENT_GIT_ROOT_PATH\" value=\"$PROJECT_DIR$\" />\r\n  </component>\r\n  <component name=\"ProjectId\" id=\"26k45dRYNZYqWA4QTTX0tBgcvuT\" />\r\n  <component name=\"ProjectLevelVcsManager\" settingsEditedManually=\"true\" />\r\n  <component name=\"ProjectViewState\">\r\n    <option name=\"hideEmptyMiddlePackages\" value=\"true\" />\r\n    <option name=\"showLibraryContents\" value=\"true\" />\r\n  </component>\r\n  <component name=\"PropertiesComponent\">\r\n    <property name=\"RunOnceActivity.OpenProjectViewOnStart\" value=\"true\" />\r\n    <property name=\"RunOnceActivity.ShowReadmeOnStart\" value=\"true\" />\r\n    <property name=\"SHARE_PROJECT_CONFIGURATION_FILES\" value=\"true\" />\r\n    <property name=\"last_opened_file_path\" value=\"$PROJECT_DIR$\" />\r\n    <property name=\"project.structure.last.edited\" value=\"Modules\" />\r\n    <property name=\"project.structure.proportion\" value=\"0.15\" />\r\n    <property name=\"project.structure.side.proportion\" value=\"0.2\" />\r\n  </component>\r\n  <component name=\"RunManager\">\r\n    <configuration name=\"random\" type=\"Application\" factoryName=\"Application\" temporary=\"true\" nameIsGenerated=\"true\">\r\n      <option name=\"MAIN_CLASS_NAME\" value=\"random\" />\r\n      <module name=\"Pastry-DHT\" />\r\n      <method v=\"2\">\r\n        <option name=\"Make\" enabled=\"true\" />\r\n      </method>\r\n    </configuration>\r\n    <recent_temporary>\r\n      <list>\r\n        <item itemvalue=\"Application.random\" />\r\n      </list>\r\n    </recent_temporary>\r\n  </component>\r\n  <component name=\"SpellCheckerSettings\" RuntimeDictionaries=\"0\" Folders=\"0\" CustomDictionaries=\"0\" DefaultDictionary=\"application-level\" UseSingleDictionary=\"true\" transferred=\"true\" />\r\n  <component name=\"TaskManager\">\r\n    <task active=\"true\" id=\"Default\" summary=\"Default task\">\r\n      <changelist id=\"a734ac05-85e4-43b0-ac59-2cae7066a8be\" name=\"Default Changelist\" comment=\"\" />\r\n      <created>1647954070052</created>\r\n      <option name=\"number\" value=\"Default\" />\r\n      <option name=\"presentableId\" value=\"Default\" />\r\n      <updated>1647954070052</updated>\r\n    </task>\r\n    <servers />\r\n  </component>\r\n  <component name=\"Vcs.Log.Tabs.Properties\">\r\n    <option name=\"TAB_STATES\">\r\n      <map>\r\n        <entry key=\"MAIN\">\r\n          <value>\r\n            <State />\r\n          </value>\r\n        </entry>\r\n      </map>\r\n    </option>\r\n  </component>\r\n</project>
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/.idea/workspace.xml b/.idea/workspace.xml
+--- a/.idea/workspace.xml	(revision 409c944be10c8f6d240cd397169898dad7b370f5)
++++ b/.idea/workspace.xml	(date 1648578752031)
+@@ -1,12 +1,13 @@
+ <?xml version="1.0" encoding="UTF-8"?>
+ <project version="4">
+   <component name="ChangeListManager">
+-    <list default="true" id="a734ac05-85e4-43b0-ac59-2cae7066a8be" name="Default Changelist" comment="">
+-      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
+-      <change afterPath="$PROJECT_DIR$/src/pastry_code/DiscoveryNode.java" afterDir="false" />
++    <list default="true" id="a734ac05-85e4-43b0-ac59-2cae7066a8be" name="Default Changelist" comment="Completed coding the Discovery Node.">
++      <change afterPath="$PROJECT_DIR$/src/pastry_code/DataStorage.java" afterDir="false" />
+       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+-      <change beforePath="$PROJECT_DIR$/src/pastry_code/wireformats/ErrorMessage.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/pastry_code/wireformats/ErrorMessage.java" afterDir="false" />
+-      <change beforePath="$PROJECT_DIR$/src/pastry_code/wireformats/NodeInformationMessage.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/pastry_code/wireformats/NodeInformationMessage.java" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/src/pastry_code/DiscoveryNode.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/pastry_code/DiscoveryNode.java" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/src/pastry_code/wireformats/LookupNodeMessage.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/pastry_code/wireformats/LookupNodeMessage.java" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/src/pastry_code/wireformats/ReadDataMessage.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/pastry_code/wireformats/ReadDataMessage.java" afterDir="false" />
++      <change beforePath="$PROJECT_DIR$/src/pastry_code/wireformats/WriteDataMessage.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/pastry_code/wireformats/WriteDataMessage.java" afterDir="false" />
+     </list>
+     <option name="SHOW_DIALOG" value="false" />
+     <option name="HIGHLIGHT_CONFLICTS" value="true" />
+@@ -22,6 +23,14 @@
+   </component>
+   <component name="Git.Settings">
+     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
++  </component>
++  <component name="HighlightingSettingsPerFile">
++    <setting file="file://$PROJECT_DIR$/src/pastry_code/wireformats/RegisterNodeMessage.java" root0="FORCE_HIGHLIGHTING" />
++    <setting file="file://$PROJECT_DIR$/src/pastry_code/wireformats/Protocol.java" root0="FORCE_HIGHLIGHTING" />
++    <setting file="file://$PROJECT_DIR$/src/pastry_code/DiscoveryNode.java" root0="FORCE_HIGHLIGHTING" />
++    <setting file="file://$PROJECT_DIR$/src/pastry_code/wireformats/NodeInformationMessage.java" root0="FORCE_HIGHLIGHTING" />
++    <setting file="file://$PROJECT_DIR$/src/pastry_code/wireformats/NodeJoinMessage.java" root0="FORCE_HIGHLIGHTING" />
++    <setting file="file://$PROJECT_DIR$/src/pastry_code/wireformats/ReadDataMessage.java" root0="FORCE_HIGHLIGHTING" />
+   </component>
+   <component name="ProjectId" id="26k45dRYNZYqWA4QTTX0tBgcvuT" />
+   <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
+@@ -61,6 +70,21 @@
+       <option name="presentableId" value="Default" />
+       <updated>1647954070052</updated>
+     </task>
++    <task id="LOCAL-00001" summary="Completed coding the Discovery Node.">
++      <created>1648316085493</created>
++      <option name="number" value="00001" />
++      <option name="presentableId" value="LOCAL-00001" />
++      <option name="project" value="LOCAL" />
++      <updated>1648316085493</updated>
++    </task>
++    <task id="LOCAL-00002" summary="Completed coding the Discovery Node.">
++      <created>1648316169978</created>
++      <option name="number" value="00002" />
++      <option name="presentableId" value="LOCAL-00002" />
++      <option name="project" value="LOCAL" />
++      <updated>1648316169978</updated>
++    </task>
++    <option name="localTasksCounter" value="3" />
+     <servers />
+   </component>
+   <component name="Vcs.Log.Tabs.Properties">
+@@ -74,4 +98,8 @@
+       </map>
+     </option>
+   </component>
++  <component name="VcsManagerConfiguration">
++    <MESSAGE value="Completed coding the Discovery Node." />
++    <option name="LAST_COMMIT_MESSAGE" value="Completed coding the Discovery Node." />
++  </component>
+ </project>
+\ No newline at end of file
+Index: src/pastry_code/DataStorage.java
+IDEA additional info:
+Subsystem: com.intellij.openapi.diff.impl.patch.CharsetEP
+<+>UTF-8
+===================================================================
+diff --git a/src/pastry_code/DataStorage.java b/src/pastry_code/DataStorage.java
+new file mode 100644
+--- /dev/null	(date 1648579264508)
++++ b/src/pastry_code/DataStorage.java	(date 1648579264508)
+@@ -0,0 +1,222 @@
++package pastry_code;
++
++// Class for Querying data from a Node or pushing data to a Node.
++// This class will be ran by the node who want to access or alter the data in the cluster.
++
++import pastry_code.wireformats.*;
++
++import java.io.*;
++import java.net.ServerSocket;
++import java.net.Socket;
++import java.util.logging.Logger;
++
++public class DataStorage {
++
++    // Logging the flow of program.
++    private static final Logger LOGGER = Logger.getLogger(DataStorage.class.getCanonicalName());
++
++    public static void main(String[] args) {
++
++        // Port on which this class will run.
++        int port = 0;
++
++        // Discovery Node routing information for connection.
++        String discoveryNodeAddress = "";
++        int  discoveryNodePort = 0;
++
++        try {
++            port = Integer.parseInt(args[0]);
++            discoveryNodeAddress = args[1];
++            discoveryNodePort = Integer.parseInt(args[2]);
++        } catch (Exception e) {
++            System.out.println("Syntax: DataStorage port DiscoveryNodeAddress DiscoveryNodePort");
++            System.exit(1);
++        }
++
++        String input = "";
++
++        BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
++
++        while(true) {
++            try {
++
++                System.out.println("Functionality Options \nS) Store Data \nR) Retrieve Data \nQ) Quit!");
++
++                input = br.readLine();
++                input = input.substring(1);
++
++                if(input.equalsIgnoreCase("Q")) {
++                    break;
++                } else if(!input.equalsIgnoreCase("S") || !input.equalsIgnoreCase("R")) {
++                    System.out.println("Wrong option!");
++                    continue;
++                }
++
++                // Storing file.
++                if(input.equalsIgnoreCase("S")) {
++
++                    // Getting the file by creating object of File class from the file location.
++                    System.out.println("Enter File Name");
++                    File file = new File(br.readLine());
++
++                    if(!file.exists()) {
++                        throw new Exception("File " +file.getName() +" doesn't exist");
++                    }
++
++                    // Getting the ID of the file.
++                    byte[] id;
++                    System.out.println("Enter the ID of the file(leave black to generate one)");
++
++                    String idString = br.toString();
++
++                    if(idString.length() != 0) {
++                        id = HexConverter.convertHexToBytes(idString);
++                    } else {
++                        short random = (short) (file.getName().hashCode() % (int) Short.MAX_VALUE);
++                        id = new byte[2];
++                        id[0] = (byte) (random & 0xff);
++                        id[1] = (byte) ((random >> 8) & 0xff);
++                    }
++
++                    // Fetching a random from discovery node so that we can start the traversal(lookup) from their.
++                    NodeAddress randomSeedingNode = getRandomNode(discoveryNodeAddress, discoveryNodePort);
++
++                    // Look up in the cluster; returns the desired Node.
++                    NodeAddress nodeAddress = lookup(id, randomSeedingNode, port);
++
++                    // Reading the content of the file into the buffer for storing in byte[] array.
++                    FileInputStream infile = new FileInputStream(file);
++
++                    // file.length returns the length of the stream.
++                    byte[] data = new byte[(int)file.length()];
++                    int len = infile.read(data);
++
++                    if(len != data.length) {
++                        LOGGER.severe("Error reading data into the buffer.");
++                        return;
++                    }
++
++                    infile.close();
++
++                    // Writing data to the desired Node.
++                    WriteDataMessage writeDataMessage = new WriteDataMessage(id, data);
++                    Socket writeSocket = new Socket(nodeAddress.getInetAddress(), nodeAddress.getPort());
++
++                    ObjectOutputStream out = new ObjectOutputStream(writeSocket.getOutputStream());
++                    out.writeObject(writeDataMessage);
++
++                    writeSocket.close();
++                    LOGGER.info("Send the file with the ID: " +HexConverter.convertBytesToHex(id) +" to the Node " +nodeAddress);
++                }
++                else if(input.equalsIgnoreCase("R")) {
++
++                    // Getting ID.
++                    System.out.println("Enter ID of the file");
++                    String idString = br.readLine();
++                    byte[] id = HexConverter.convertHexToBytes(idString);
++
++                    // Get random node.
++                    NodeAddress seedNodeAddress = getRandomNode(discoveryNodeAddress, discoveryNodePort);
++
++                    // lookup id in cluster
++                    NodeAddress nodeAddress = lookup(id, seedNodeAddress, port);
++
++                    ReadDataMessage readDataMessage = new ReadDataMessage(id);
++                    Socket readSocket = new Socket(nodeAddress.getInetAddress(), nodeAddress.getPort());
++                    ObjectOutputStream out = new ObjectOutputStream(readSocket.getOutputStream());
++                    out.writeObject(readDataMessage);
++
++                    // Parsing reply from the node
++                    Protocol reply = (Protocol) new ObjectInputStream(readSocket.getInputStream()).readObject();
++
++                    readSocket.close();
++
++                    if(reply.getMessageType() == Protocol.ERROR_MSG) {
++                        throw new Exception(((ErrorMessage) reply).getMessage());
++                    } else if(reply.getMessageType() != Protocol.WRITE_DATA_MSG) {
++                        throw new Exception("Received an unexpected message type " +reply.getMessageType());
++                    }
++
++                    WriteDataMessage writeDataMessage = (WriteDataMessage) reply;
++
++                    // Getting the file name to push the data into it.
++                    System.out.println("Enter a file name");
++                    File file = new File(br.readLine());
++
++                    FileOutputStream fileOutputStream = new FileOutputStream(file);
++
++                    for(byte data: writeDataMessage.getData()) {
++                        fileOutputStream.write(data);
++                    }
++
++                    fileOutputStream.close();
++
++                    LOGGER.info("Wrote the data into a file: " +file.getCanonicalPath());
++                }
++            } catch (Exception e) {
++                e.printStackTrace();
++                LOGGER.severe(e.getMessage());
++            }
++        }
++
++
++    }
++
++    public static NodeAddress getRandomNode(String discoveryNodeAddress, int discoveryNodePort) throws Exception {
++
++        Socket socket = new Socket(discoveryNodeAddress, discoveryNodePort);
++
++        RequestRandomNodeMessage requestRandomNodeMessage = new RequestRandomNodeMessage();
++
++        ObjectOutputStream write = new ObjectOutputStream(socket.getOutputStream());
++
++        write.writeObject(requestRandomNodeMessage);
++
++        Protocol read = (Protocol) new ObjectInputStream(socket.getInputStream()).readObject();
++
++        socket.close();
++
++        if(read.getMessageType() == Protocol.ERROR_MSG) {
++            throw new Exception(((ErrorMessage)read).getMessage());
++        } else if(read.getMessageType() != Protocol.NODE_INFO_MSG) {
++            throw new Exception("Received an unexpected message: " +read.getMessageType());
++        }
++
++        return ((NodeInformationMessage)read).getNodeAddress();
++    }
++
++    public static NodeAddress lookup(byte[] id, NodeAddress seedAddress, int serverPort) throws Exception {
++
++        // Starting a server socket for listening from the nodes.
++        ServerSocket serverSocket = new ServerSocket(serverPort);
++
++        LookupNodeMessage lookupNodeMessage = new LookupNodeMessage(id, new NodeAddress("DataStorage", null, serverPort), 0);
++
++        lookupNodeMessage.addHop(seedAddress);
++
++        Socket socket = new Socket(seedAddress.getInetAddress(), seedAddress.getPort());
++
++        ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
++
++        // Seeded the random node with the look up message and now the desired node will try to connect this DataStorage.
++        out.writeObject(lookupNodeMessage);
++        socket.close();
++
++        Socket thisSocket = serverSocket.accept();
++
++        Protocol replyMessage = (Protocol) new ObjectInputStream(thisSocket.getInputStream()).readObject();
++
++        if(replyMessage.getMessageType() == Protocol.ERROR_MSG) {
++            throw new Exception(((ErrorMessage)replyMessage).getMessage());
++        } else if(replyMessage.getMessageType() != Protocol.NODE_INFO_MSG) {
++            throw new Exception("Received a unexpected message type " +replyMessage.getMessageType() +".");
++        }
++
++        // Parsing the Reply Message into Desired Node Information.
++        NodeInformationMessage information = (NodeInformationMessage) replyMessage;
++
++        thisSocket.close();
++        serverSocket.close();
++        return information.getNodeAddress();
++    }
++}
