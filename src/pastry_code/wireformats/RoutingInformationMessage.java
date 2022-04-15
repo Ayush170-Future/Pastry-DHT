@@ -12,7 +12,7 @@ public class RoutingInformationMessage extends Protocol{
     private int prefixLength;
     private boolean broadcastMessage;
 
-    RoutingInformationMessage(Map<byte[], NodeAddress> leafSet, int prefixLength, Map<String, NodeAddress> routingTable, boolean broadcastMessage) {
+    public RoutingInformationMessage(Map<byte[], NodeAddress> leafSet, int prefixLength, Map<String, NodeAddress> routingTable, boolean broadcastMessage) {
         this.leafSet = leafSet;
         this.prefixLength = prefixLength;
         this.routingTable = routingTable;

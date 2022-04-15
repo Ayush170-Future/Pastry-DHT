@@ -24,19 +24,10 @@ public class PastryNode extends Thread {
     protected String storageDirectory;
     protected ReadWriteLock readWriteLock;
     protected HashMap<String, NodeAddress>[] routingTable;
-    //protected TreeMap<byte[], NodeAddress> lessThanLS, greaterThanLS;
-    protected leafSet lowLeaf;
-    protected leafSet highLeaf;
+    protected TreeMap<byte[], NodeAddress> lessThanLS, greaterThanLS;
     protected List<String> dataStores;
+    protected int MAX_LEAF_SET_SIZE = 1;
 
-    protected static class leafSet {
-        String id;
-        NodeAddress nodeAddress;
-        public leafSet(String id, NodeAddress nodeAddress) {
-            this.id = id;
-            this.nodeAddress = nodeAddress;
-        }
-    }
 
     private static final Logger LOGGER = Logger.getLogger(PastryNode.class.getCanonicalName());
 
@@ -51,22 +42,19 @@ public class PastryNode extends Thread {
         idString = HexConverter.convertBytesToHex(id);
         idValue = byteToShort(id);
 
-//        lessThanLS = new TreeMap<>((byte[] a, byte[] b) -> {
-//           int d1 = lessThanDistance(byteToShort(a), idValue);
-//           int d2 = lessThanDistance(byteToShort(b), idValue);
-//
-//           return d2 - d1;
-//        });
-//
-//        greaterThanLS = new TreeMap<>((byte[] a, byte[] b) -> {
-//            int d1 = greaterThanDistance(byteToShort(a), idValue);
-//            int d2 = greaterThanDistance(byteToShort(b), idValue);
-//
-//            return d1 - d2;
-//        });
+        lessThanLS = new TreeMap<>((byte[] a, byte[] b) -> {
+           int d1 = lessThanDistance(byteToShort(a), idValue);
+           int d2 = lessThanDistance(byteToShort(b), idValue);
 
-        lowLeaf = new leafSet("", null);
-        highLeaf = new leafSet("", null);
+           return d2 - d1;
+        });
+
+        greaterThanLS = new TreeMap<>((byte[] a, byte[] b) -> {
+            int d1 = greaterThanDistance(byteToShort(a), idValue);
+            int d2 = greaterThanDistance(byteToShort(b), idValue);
+
+            return d1 - d2;
+        });
 
         // Initializing the 4x16 routing table.
         routingTable = new HashMap[4];
@@ -229,11 +217,66 @@ public class PastryNode extends Thread {
 
                         // finding closest node in the leafSet.
                         if(matchingNode == null || nodeJoinMessage.hopContains(matchingNode)) {
-
+                            matchingNode = closestMatchingInLeafSet(nodeJoinMessage.getId());
                         }
 
-                }
+                        // Send the routing information to the joining node.
+                        Socket joinNodeSocket = new Socket(nodeJoinMessage.getNodeAddress().getInetAddress(), nodeJoinMessage.getNodeAddress().getPort());
+                        RoutingInformationMessage routingInformationMessage = new // if this is the last routing info msg then we need to broadcast to every peer.
+                                RoutingInformationMessage(getRelevantLeafSet(), prefixMatch, getRelevantRoutingTable(prefixMatch), matchingNode.getInetAddress() == null);
+                        ObjectOutputStream out = new ObjectOutputStream(joinNodeSocket.getOutputStream());
+                        out.writeObject(routingInformationMessage);
 
+                        joinNodeSocket.close();
+
+                        // Forwarding the Node Join Message to the Matching Node for further search of the relevant Node.
+                        if(matchingNode.getInetAddress() != null) {
+                            LOGGER.info("Forwarding node join message with id " +HexConverter.convertBytesToHex(nodeJoinMessage.getId()) +" to " +matchingNode);
+                            // Adding the matching node into the path.
+                            nodeJoinMessage.addHop(matchingNode);
+                            Socket socket = new Socket(matchingNode.getInetAddress(), matchingNode.getPort());
+                            ObjectOutputStream writeMessage = new ObjectOutputStream(socket.getOutputStream());
+                            writeMessage.writeObject(nodeJoinMessage);
+
+                            socket.close();
+                        }
+                        break;
+
+                    case Protocol.ROUTING_INFO_MSG:
+                        RoutingInformationMessage routingInfoMessage = (RoutingInformationMessage) requestMessage;
+                        boolean updated = false;
+
+                        // Loop through the LeafSet
+                        for(Map.Entry<byte[], NodeAddress> entry: routingInfoMessage.getLeafSet().entrySet()) {
+
+                            // Update the leafSet
+                            if(entry.getValue().getInetAddress() == null) {
+                                updated = updateLeafSet(entry.getKey(), new NodeAddress(entry.getValue().getNodeName(), socket.getInetAddress(), entry.getValue().getPort())) || updated;
+                            } else updated = updateLeafSet(entry.getKey(), entry.getValue()) || updated;
+
+
+                            // Update routing table
+                            if(!Arrays.equals(entry.getKey(), id)) {
+                                String nodeIDString = "";
+                                int prefix = 0;
+                                for(prefix = 0; prefix < 4; prefix++) {
+                                    if(HexConverter.convertBytesToHex(entry.getKey()).charAt(prefix) != idString.charAt(prefix)) {
+                                        nodeIDString += HexConverter.convertBytesToHex(entry.getKey()).charAt(prefix);
+                                        break;
+                                    }
+                                }
+
+                                if(entry.getValue().getInetAddress() == null) {
+                                    updated = updateRoutingTable(nodeIDString, new NodeAddress(entry.getValue().getNodeName(),
+                                            socket.getInetAddress(), entry.getValue().getPort()), prefix) || updated;
+                                } else {
+                                    updated = updateRoutingTable(nodeIDString, entry.getValue(), prefix) || updated;
+                                }
+                            }
+                        }
+
+
+                }
             } catch (Exception e) {
                 e.printStackTrace();
                 LOGGER.severe(e.getMessage());
@@ -280,6 +323,137 @@ public class PastryNode extends Thread {
         } finally {
             readWriteLock.readLock().unlock();
         }
+    }
+
+    protected NodeAddress closestMatchingInLeafSet(byte[] id) {
+        readWriteLock.readLock().lock();
+        try {
+            short nodeIDValue = byteToShort(id);
+            int minDistance = Math.min(lessThanDistance(idValue, nodeIDValue), greaterThanDistance(idValue, nodeIDValue));
+            short minValue = nodeIDValue;
+            NodeAddress minNodeAddress = null;
+
+            // Check in the less than LeafSet
+            for(byte[] bytes: lessThanLS.keySet()) {
+                short bytesValue = byteToShort(bytes);
+                int distance = Math.min(lessThanDistance(bytesValue, nodeIDValue), greaterThanDistance(bytesValue, nodeIDValue));
+                if(distance < minDistance || (distance == minDistance && bytesValue > minValue)) {
+                    minDistance = distance;
+                    minValue = bytesValue;
+                    minNodeAddress = lessThanLS.get(bytes);
+                }
+            }
+
+            // Check in the greater than LeafSet
+            for(byte[] bytes: greaterThanLS.keySet()) {
+                short bytesValue = byteToShort(bytes);
+                int distance = Math.min(lessThanDistance(bytesValue, nodeIDValue), greaterThanDistance(bytesValue, nodeIDValue));
+                if(distance < minDistance || (distance == minDistance && bytesValue > minValue)) {
+                    minDistance = distance;
+                    minValue = bytesValue;
+                    minNodeAddress = greaterThanLS.get(bytes);
+                }
+            }
+
+            if(minNodeAddress == null) return new NodeAddress(nodeName, null, port);
+            else return minNodeAddress;
+        } finally {
+            readWriteLock.readLock().unlock();
+        }
+    }
+
+    protected Map<byte[], NodeAddress> getRelevantLeafSet() {
+        readWriteLock.readLock().lock();
+        try {
+            Map<byte[], NodeAddress> relevantLeafSet = new HashMap<>();
+            relevantLeafSet.putAll(lessThanLS);
+            relevantLeafSet.putAll(greaterThanLS);
+            relevantLeafSet.put(id, new NodeAddress(nodeName, null, port));
+            return relevantLeafSet;
+        } finally {
+            readWriteLock.readLock().unlock();
+        }
+    }
+
+    protected Map<String, NodeAddress> getRelevantRoutingTable(int prefixLength) {
+        readWriteLock.readLock().lock();
+        try {
+            return routingTable[prefixLength];
+        } finally {
+            readWriteLock.readLock().unlock();
+        }
+    }
+
+    protected boolean updateLeafSet(byte[] addID, NodeAddress nodeAddress) {
+        boolean updated = false;
+        readWriteLock.readLock().lock();
+        try {
+
+            if(Arrays.equals(id, addID)) return false;
+
+            short addIDValue = byteToShort(id);
+
+            // In the less than leaf set
+            for(byte[] bytes: lessThanLS.keySet()) {
+                if(Arrays.equals(bytes, addID)) return false;
+            }
+
+            if(lessThanLS.size() < MAX_LEAF_SET_SIZE) {
+                lessThanLS.put(addID, nodeAddress);
+                updated = true;
+
+            } else if(lessThanDistance(addIDValue, idValue) < lessThanDistance(byteToShort(lessThanLS.firstKey()), idValue)) {
+                lessThanLS.remove(lessThanLS.firstKey());
+                lessThanLS.put(addID, nodeAddress);
+                updated = true;
+            }
+
+            // In greater than leaf set
+            boolean greaterFound = false;
+            for(byte[] bytes: greaterThanLS.keySet()) {
+                if(Arrays.equals(bytes, addID)) {
+                    greaterFound = true;
+                    break;
+                }
+            }
+
+            if(!greaterFound) {
+                if(greaterThanLS.size() < MAX_LEAF_SET_SIZE) {
+                    greaterThanLS.put(addID, nodeAddress);
+                    updated = true;
+                } else if(greaterThanDistance(addIDValue, idValue) < greaterThanDistance(byteToShort(greaterThanLS.firstKey()), idValue)) {
+                    greaterThanLS.remove(greaterThanLS.firstKey());
+                    greaterThanLS.put(addID, nodeAddress);
+                    updated = true;
+                }
+            }
+
+        } finally {
+            readWriteLock.readLock().unlock();
+        }
+
+        return updated;
+    }
+
+    protected boolean updateRoutingTable(String addIDString, NodeAddress nodeAddress, int prefixLength) {
+        readWriteLock.writeLock().lock();
+        try {
+
+            // Double checking if the joining node is this node or not.
+            if(idString.substring(prefixLength, prefixLength+1).equals(addIDString)) {
+                return false;
+            }
+
+            // Add entry to routing table.
+            if(!routingTable[prefixLength].containsKey(addIDString)) {
+                routingTable[prefixLength].put(addIDString, nodeAddress);
+                return true;
+            }
+        } finally {
+            readWriteLock.writeLock().unlock();
+        }
+
+        return false;
     }
 
     protected static byte[] generateID() {
