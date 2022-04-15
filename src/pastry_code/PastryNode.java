@@ -2,9 +2,7 @@ package pastry_code;
 
 import pastry_code.wireformats.*;
 
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
+import java.io.*;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.ByteBuffer;
@@ -275,7 +273,245 @@ public class PastryNode extends Thread {
                             }
                         }
 
+                        // Loop through the routing table.
+                        for(Map.Entry<String, NodeAddress> entry: routingInfoMessage.getRoutingTable().entrySet())
+                            updated = updateRoutingTable(entry.getKey(), entry.getValue(), routingInfoMessage.getPrefixLength()) || updated;
 
+                        // TODO: Print the updated routing data sets.
+
+                        readWriteLock.readLock().lock();
+                        try {
+                            if (routingInfoMessage.isBroadcastMessage()) {
+                                List<NodeAddress> nodeBlacklist = new LinkedList();
+
+                                //send to less than leaf set
+                                for (Map.Entry<byte[], NodeAddress> entry : lessThanLS.entrySet()) {
+                                    //if this is a message from the closest node send routing information to every node in leaf set
+                                    if (nodeBlacklist.contains(entry.getValue())) {
+                                        continue;
+                                    } else {
+                                        nodeBlacklist.add(entry.getValue());
+                                    }
+
+                                    //find longest prefix match
+                                    String nodeIDStr = HexConverter.convertBytesToHex(entry.getKey());
+                                    int i = 0;
+                                    for (i = 0; i < 4; i++) {
+                                        if (idString.charAt(i) != nodeIDStr.charAt(i)) {
+                                            break;
+                                        }
+                                    }
+
+                                    //send routing update
+                                    Socket nodeSocket = new Socket(entry.getValue().getInetAddress(), entry.getValue().getPort());
+                                    ObjectOutputStream nodeOut = new ObjectOutputStream(nodeSocket.getOutputStream());
+                                    nodeOut.writeObject(new RoutingInformationMessage(getRelevantLeafSet(), i, routingTable[i], false));
+
+                                    nodeSocket.close();
+                                }
+
+                                //send to greater than leaf set
+                                for (Map.Entry<byte[], NodeAddress> entry : greaterThanLS.entrySet()) {
+                                    if (nodeBlacklist.contains(entry.getValue())) {
+                                        continue;
+                                    } else {
+                                        nodeBlacklist.add(entry.getValue());
+                                    }
+
+                                    //find longest prefix match
+                                    String nodeIDStr = HexConverter.convertBytesToHex(entry.getKey());
+                                    int i = 0;
+                                    for (i = 0; i < 4; i++) {
+                                        if (idString.charAt(i) != nodeIDStr.charAt(i)) {
+                                            break;
+                                        }
+                                    }
+
+                                    //send routing update
+                                    Socket nodeSocket = new Socket(entry.getValue().getInetAddress(), entry.getValue().getPort());
+                                    ObjectOutputStream nodeOut = new ObjectOutputStream(nodeSocket.getOutputStream());
+                                    nodeOut.writeObject(new RoutingInformationMessage(getRelevantLeafSet(), i, routingTable[i], false));
+
+                                    nodeSocket.close();
+                                }
+
+                                //send to routing table
+                                for (int i = 0; i < routingTable.length; i++) {
+                                    Map<String, NodeAddress> map = routingTable[i];
+
+                                    for (Map.Entry<String, NodeAddress> entry : map.entrySet()) {
+                                        if (nodeBlacklist.contains(entry.getValue())) {
+                                            continue;
+                                        } else {
+                                            nodeBlacklist.add(entry.getValue());
+                                        }
+
+                                        Socket nodeSocket = new Socket(entry.getValue().getInetAddress(), entry.getValue().getPort());
+                                        ObjectOutputStream nodeOut = new ObjectOutputStream(nodeSocket.getOutputStream());
+                                        nodeOut.writeObject(new RoutingInformationMessage(getRelevantLeafSet(), i, map, false));
+
+                                        nodeSocket.close();
+
+                                    }
+                                }
+                            }
+
+                            //transfer data to other nodes if needed
+                            for(String dataID : dataStores) {
+                                short dataIDValue = byteToShort(HexConverter.convertHexToBytes(dataID));
+                                int minDistance = Math.min(lessThanDistance(idValue, dataIDValue), greaterThanDistance(idValue, dataIDValue));
+                                NodeAddress forwardNodeAddress = null;
+
+                                //check less than leaf set
+                                for(Map.Entry<byte[],NodeAddress> entry : lessThanLS.entrySet()) {
+                                    short nodeIDValue = byteToShort(entry.getKey());
+                                    int distance = Math.min(lessThanDistance(dataIDValue, nodeIDValue), greaterThanDistance(dataIDValue, nodeIDValue));
+                                    if(distance < minDistance) {
+                                        minDistance = distance;
+                                        forwardNodeAddress = entry.getValue();
+                                    }
+                                }
+
+                                //check greater than leaf set
+                                for(Map.Entry<byte[],NodeAddress> entry : greaterThanLS.entrySet()) {
+                                    short nodeIDValue = byteToShort(entry.getKey());
+                                    int distance = Math.min(lessThanDistance(dataIDValue, nodeIDValue), greaterThanDistance(dataIDValue, nodeIDValue));
+                                    if(distance < minDistance) {
+                                        minDistance = distance;
+                                        forwardNodeAddress = entry.getValue();
+                                    }
+                                }
+
+                                if(forwardNodeAddress != null) {
+                                    //read file
+                                    File file = new File(getFilename(storageDirectory,dataID));
+                                    byte[] data = new byte[(int)file.length()];
+                                    FileInputStream fileIn = new FileInputStream(file);
+                                    if(fileIn.read(data) != data.length) {
+                                        throw new Exception("Unknown error reading file.");
+                                    }
+
+                                    fileIn.close();
+
+                                    //send write data message to node
+                                    LOGGER.info("Forwarding data with id '" + dataID + "' to node " + forwardNodeAddress + ".");
+                                    Socket forwardSocket = new Socket(forwardNodeAddress.getInetAddress(), forwardNodeAddress.getPort());
+                                    ObjectOutputStream forwardOut = new ObjectOutputStream(forwardSocket.getOutputStream());
+                                    forwardOut.writeObject(new WriteDataMessage(HexConverter.convertHexToBytes(dataID), data));
+
+                                    forwardSocket.close();
+                                    file.delete();
+                                }
+                            }
+                        } finally {
+                            readWriteLock.readLock().unlock();
+                        }
+                        break;
+
+                    case Protocol.LOOKUP_NODE_MSG:
+                        LookupNodeMessage lookupNodeMsg = (LookupNodeMessage) requestMessage;
+                        if(lookupNodeMsg.getNodeAddress().getInetAddress() == null) {
+                            lookupNodeMsg.getNodeAddress().setInetAddress(socket.getInetAddress()); //TODO better way to do this
+                        }
+
+                        LOGGER.info("Received lookup node message '" + lookupNodeMsg.toString() + "'");
+                        NodeAddress forwardAddress = null;
+
+                        //check if data belongs in leaf set
+                        int nodeIDValue = byteToShort(lookupNodeMsg.getId()),
+                                lsMinValue = byteToShort(lessThanLS.firstKey()),
+                                lsMaxValue = byteToShort(greaterThanLS.lastKey());
+
+                        if((lsMaxValue > lsMinValue && lsMinValue <= nodeIDValue && lsMaxValue >= nodeIDValue) //min=-10, id=-6, max=-4
+                                || (lsMaxValue < lsMinValue && (lsMinValue <= nodeIDValue || lsMaxValue >= nodeIDValue))) { //min = 10, id = -4, max = -6
+
+                            forwardAddress = closestMatchingInLeafSet(lookupNodeMsg.getId());
+                        }
+
+                        if(forwardAddress == null) {
+                            //search for exact prefix match in routing table
+                            forwardAddress = closestMatchingInRoutingTable(lookupNodeMsg.getId(), lookupNodeMsg.getPrefixLength());
+
+                            if(forwardAddress != null) {
+                                lookupNodeMsg.setLongestPrefixLength(lookupNodeMsg.getPrefixLength() + 1);
+                            }
+                        }
+
+                        if(forwardAddress == null) {
+                            //search closest value in routing table
+                            forwardAddress = closestMatchingInRoutingTable(lookupNodeMsg.getId(), lookupNodeMsg.getPrefixLength());
+                        }
+
+                        if(forwardAddress == null) {
+                            //worst case forward to closest node in leaf set
+                            forwardAddress = closestMatchingInLeafSet(lookupNodeMsg.getId());
+                        }
+
+                        if(forwardAddress.getInetAddress() == null) {
+                            //this is the node where data needs to reside
+                            LOGGER.info("This is the closest node. Send response to '" + lookupNodeMsg.getNodeAddress() + "'");
+
+                            Socket socket = new Socket(lookupNodeMsg.getNodeAddress().getInetAddress(), lookupNodeMsg.getNodeAddress().getPort());
+                            ObjectOutputStream write = new ObjectOutputStream(socket.getOutputStream());
+                            write.writeObject(new NodeInformationMessage(id, new NodeAddress(nodeName, null, port)));
+                            socket.close();
+                        } else {
+                            //forward request to the correct node
+                            lookupNodeMsg.addHop(forwardAddress);
+                            LOGGER.info("Forwarding lookup node message for id '" + HexConverter.convertBytesToHex(lookupNodeMsg.getId())+ "' to node '" + forwardAddress + "'.");
+                            Socket socket = new Socket(forwardAddress.getInetAddress(), forwardAddress.getPort());
+                            ObjectOutputStream write = new ObjectOutputStream(socket.getOutputStream());
+                            write.writeObject(lookupNodeMsg);
+
+                            socket.close();
+                        }
+
+                        break;
+
+                    case Protocol.WRITE_DATA_MSG:
+                        WriteDataMessage writeDataMsg = (WriteDataMessage) requestMessage;
+                        String writeDataID = HexConverter.convertBytesToHex(writeDataMsg.getId());
+
+                        //write data to disk
+                        File writeFile = new File(getFilename(storageDirectory, writeDataID));
+                        writeFile.getParentFile().mkdirs();
+                        FileOutputStream write = new FileOutputStream(writeFile);
+                        for(byte b : writeDataMsg.getData()) {
+                            write.write(b);
+                        }
+                        write.close();
+
+                        //add id to datastore structure
+                        dataStores.add(writeDataID);
+                        LOGGER.info("Wrote data with id '" + writeDataID + "'.");
+                        break;
+
+                    case Protocol.READ_DATA_MSG:
+                        ReadDataMessage readDataMsg = (ReadDataMessage) requestMessage;
+                        String readDataID = HexConverter.convertBytesToHex(readDataMsg.getId());
+
+                        //check if datastore contains readDataID
+                        if(!dataStores.contains(readDataID)) {
+                            reply = new ErrorMessage("Node does not contain data with id '" + readDataID + "'.");
+                        } else {
+                            //read data from disk
+                            File readFile = new File(getFilename(storageDirectory, readDataID));
+                            byte[] data = new byte[(int)readFile.length()];
+                            FileInputStream fileIn = new FileInputStream(readFile);
+                            if(fileIn.read(data) != readFile.length()) {
+                                reply = new ErrorMessage("Error reading data.");
+                            } else {
+                                reply = new WriteDataMessage(readDataMsg.getId(), data);
+                            }
+
+                            fileIn.close();
+                        }
+
+                        LOGGER.info("Read data with id '" + readDataID + "'.");
+                        break;
+                    default:
+                        LOGGER.severe("Unrecognized request message type '" + requestMessage.getMessageType() + "'");
+                        break;
                 }
             } catch (Exception e) {
                 e.printStackTrace();
@@ -454,6 +690,14 @@ public class PastryNode extends Thread {
         }
 
         return false;
+    }
+
+    protected String getFilename(String storageDirectory, String filename) {
+        if(filename.charAt(0) == File.separatorChar) {
+            return storageDirectory + filename;
+        } else {
+            return storageDirectory + File.separatorChar + filename;
+        }
     }
 
     protected static byte[] generateID() {

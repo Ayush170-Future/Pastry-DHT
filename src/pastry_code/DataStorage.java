@@ -1,7 +1,7 @@
 package pastry_code;
 
 // Class for Querying data from a Node or pushing data to a Node.
-// This class will be ran by the node who want to access or alter the data in the cluster.
+// This class will be run by the node that wants to access or alter the data in the cluster.
 
 import pastry_code.wireformats.*;
 
