@@ -1,2 +1,3 @@
 # Pastry-DHT
-Status: The core DHT has been coded, and it is presently being tested to see if it works.
+Status: Testing is done, the routing algorithm works fine under one limitation that Ill resolve later.
+Next Task: Documentation, Medium blog.
